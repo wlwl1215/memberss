@@ -1,0 +1,72 @@
+# Docker Compose 파일
+# Spring Boot 앱 컨테이너와 MySQL DB 컨테이너를 한 번에 실행하기 위한 설정
+
+services:
+  # ===============================
+  # MySQL DB 컨테이너
+  # ===============================
+  db:
+    # 실제 존재하는 MySQL 이미지 사용
+    image: mysql:latest
+
+    # DB 컨테이너 이름
+    container_name: memberss-db
+
+    # MySQL root 계정 비밀번호와 기본 DB 이름 설정
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: memberss
+
+    # 내 PC 3307 포트와 DB 컨테이너 내부 3306 포트를 연결
+    # 내 PC에서 DB 접속할 때는 localhost:3307 사용
+    ports:
+      - "3307:3306"
+
+    # 컨테이너를 껐다 켜도 DB 데이터가 유지되도록 볼륨 사용
+    volumes:
+      - memberss-db-data:/var/lib/mysql
+
+    # MySQL이 진짜 준비됐는지 확인하는 설정
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    # 컨테이너가 비정상 종료되면 자동 재시작
+    restart: unless-stopped
+
+
+  # ===============================
+  # Spring Boot 앱 컨테이너
+  # ===============================
+  app:
+    # 현재 폴더의 Dockerfile을 이용해서 이미지 빌드
+    build: .
+
+    # 앱 컨테이너 이름
+    container_name: memberss-app
+
+    # DB가 준비된 뒤에 앱 실행
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # Spring Boot에서 사용할 DB 연결 정보
+    # 컨테이너끼리는 localhost가 아니라 서비스 이름 db로 연결함
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/memberss?serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 1234
+
+    # 내 PC 8080 포트와 앱 컨테이너 내부 8080 포트를 연결
+    ports:
+      - "8080:8080"
+
+    # 컨테이너가 비정상 종료되면 자동 재시작
+    restart: unless-stopped
+
+
+# DB 데이터를 저장할 Docker 볼륨
+volumes:
+  memberss-db-data:
